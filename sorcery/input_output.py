@@ -182,7 +182,7 @@ Examples:
                 formatted_prompt = HTML(f'<prompt>{prompt_text}</prompt>')
                 user_input = self.prompt_session.prompt(
                     formatted_prompt,
-                    mouse_support=True,
+                    mouse_support=False,
                     wrap_lines=False,
                 )
             else:
