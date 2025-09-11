@@ -2,12 +2,14 @@
 import litellm
 import os
 import threading
+import time
+import traceback
 from typing import Optional, Dict, Any, List
 from abc import ABC, abstractmethod
 
 from litellm.litellm_core_utils.prompt_templates.factory import get_system_prompt
-from history import StorySummary
-from sorcery.input_output import InputOutput
+from .history import StorySummary
+from .input_output import InputOutput
 from .state import GameState
 from .chat_chunks import ChatChunks
 
@@ -166,7 +168,7 @@ Instructions:
 The player will describe their action, and you should respond with what happens next in the story. The scene you write should flow naturally from the previous scene, as if the story simply flipped to the next page. Focus on consistency: for example, if the character in the last scene was holding a sword, he/she should not suddenly be holding a bow in the following scene. Same goes with descriptions of the environment or characters unless introducing information not previously established."""
 
 class Model():
-    def __init__(self, model_name, api_key = None):
+    def __init__(self, model_name):
         # map alias to canonical model name
         model_name = MODEL_ALIASES.get(model_name, model_name)
         if not self.validate_model_name(model_name):
@@ -178,10 +180,9 @@ class Model():
         max_input_tokens = self.info.get("max_input_tokens") or 0
         # min 1k max 8k tokens
         self.max_chat_history_tokens = min(max(max_input_tokens / 16, 1024), 8192)
-        if api_key is None:
-            self.api_key = self.validate_environment()
-        else:
-            self.api_key = api_key
+        self.api_key = self.validate_environment()
+        if self.api_key is None:
+            raise ValueError("No API key found in environment.")
 
     def validate_model_name(self, model_name):
         if model_name not in OPENAI_MODELS and model_name not in ANTHROPIC_MODELS:
@@ -235,7 +236,7 @@ class Model():
         return litellm.completion(**kwargs)
 
     def simple_send_with_retries(self, messages):
-        from sorcery.exceptions import LiteLLMExceptions
+        from .exceptions import LiteLLMExceptions
 
         litellm_ex = LiteLLMExceptions()
         retry_delay = 0.125
@@ -272,15 +273,16 @@ class Model():
 class StoryTeller:
     """Manages LLMs and handles scene generation."""
     
-    def __init__(self, io: InputOutput, model: str = "gpt-4o-mini", api_key: Optional[str] = None):
+    def __init__(self, io: InputOutput, model: str = "gpt-4o-mini"):
         # IO
         self.io = io
 
         # Initialize model
-        self.model = Model(model, api_key=api_key)
+        self.model = Model(model)
         
         # Initialize summarizer
         self.summarizer = StorySummary(model=self.model)
+        self.summarizer_thread = None
 
         # Separation of message types
         self.system_message = []
@@ -360,22 +362,24 @@ class StoryTeller:
 
         chunks = self.format_messages()
         messages = chunks.all_messages()
-        
+
         # check if fits in token limits
         if not self.check_tokens(messages):
             return ""
 
-        retry_delay = 0.125
+        from .exceptions import LiteLLMExceptions
         litellm_ex = LiteLLMExceptions()
+        retry_delay = 0.125
         exhausted = False
 
         while True:
             try:
                 res = self.model.send_completion(messages, False)
-                if not res or not hasattr(res, "choices") or not response.choices:
+                if not res or not hasattr(res, "choices") or not res.choices:
                     return ""
                 return res.choices[0].message.content
             except litellm_ex.exceptions_tuple() as err:
+                print(err)
                 ex_info = litellm_ex.get_ex_info(err)
 
                 if ex_info.name == "ContextWindowExceededError":
@@ -423,7 +427,6 @@ class StoryTeller:
     def generate_scene(self, user_action: str, game_state: GameState) -> str:
         """Generate a scene response to the user's action."""
         self.set_system_prompt(game_state)
-        
         # Build the prompt with user action
         prompt = f"Player action: {user_action}"
         

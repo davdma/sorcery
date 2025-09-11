@@ -2,7 +2,7 @@ from sorcery import prompts
 
 class StorySummary:
     def __init__(self, model=None, max_tokens=1024):
-        if not models:
+        if not model:
             raise ValueError("At least one model must be provided.")
         self.model = model
         self.max_tokens = max_tokens
@@ -16,7 +16,7 @@ class StorySummary:
     def tokenize(self, messages):
         sized = []
         for msg in messages:
-            tokens = self.token_count(msg)
+            tokens = self.token_count([msg])
             sized.append((tokens, msg))
         return sized
 
@@ -60,7 +60,7 @@ class StorySummary:
         sized_head = sized[:split_index]
 
         # Precompute token limit (fallback to 4096 if undefined)
-        model_max_input_tokens = self.models[0].info.get("max_input_tokens") or 4096
+        model_max_input_tokens = self.model.info.get("max_input_tokens") or 4096
         model_max_input_tokens -= 512  # reserve buffer for safety
 
         keep = []
@@ -83,7 +83,7 @@ class StorySummary:
             return summary + tail
 
         # Otherwise recurse with increased depth
-        return self.summarize_real(summary + tail, depth + 1)
+        return self.summarize(summary + tail, depth + 1)
 
     def summarize_all(self, messages):
         content = ""
@@ -104,12 +104,11 @@ class StorySummary:
             dict(role="user", content=content),
         ]
 
-        for model in self.models:
-            try:
-                summary = model.simple_send_with_retries(summarize_messages)
-                if summary is not None:
-                    return [dict(role="user", content=summary)]
-            except Exception as e:
-                print(f"Summarization failed for model {model.name}: {str(e)}")
+        try:
+            summary = self.model.simple_send_with_retries(summarize_messages)
+            if summary is not None:
+                return [dict(role="user", content=summary)]
+        except Exception as e:
+            print(f"Summarization failed for model {self.model.name}: {str(e)}")
 
         raise ValueError("summarizer unexpectedly failed for all models")

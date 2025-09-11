@@ -3,6 +3,7 @@
 
 import argparse
 import sys
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -25,8 +26,13 @@ def create_parser() -> argparse.ArgumentParser:
     )
     
     parser.add_argument(
-        "--api-key",
-        help="API key for LLM service (or use environment variables)",
+        "--openai-api-key",
+        help="Specify the OpenAI API key",
+    )
+
+    parser.add_argument(
+        "--anthropic-api-key",
+        help="Specify the Anthropic API key"
     )
     
     parser.add_argument(
@@ -65,12 +71,19 @@ def main(args: Optional[list] = None) -> int:
         # Load configuration
         config = Config(
             model=parsed_args.model,
-            api_key=parsed_args.api_key,
+            openai_api_key=parsed_args.openai_api_key,
+            anthropic_api_key=parsed_args.anthropic_api_key,
             save_file=parsed_args.save_file,
             new_game=parsed_args.new_game,
             debug=parsed_args.debug,
             no_color=parsed_args.no_color,
         )
+
+        if parsed_args.openai_api_key:
+            os.environ["OPENAI_API_KEY"] = parsed_args.openai_api_key
+        
+        if parsed_args.anthropic_api_key:
+            os.environ["ANTHROPIC_API_KEY"] = parsed_args.anthropic_api_key
         
         # Initialize and start game
         game = Game(config)

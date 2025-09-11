@@ -11,7 +11,8 @@ class Config(BaseModel):
     """Configuration for Sorcery game."""
     
     model: str = Field(default="gpt-4o-mini", description="LLM model to use")
-    api_key: Optional[str] = Field(default=None, description="API key for LLM service")
+    openai_api_key: Optional[str] = Field(default=None, description="API key for OpenAI LLM service")
+    anthropic_api_key: Optional[str] = Field(default=None, description="API key for Anthropic LLM service")
     save_file: Optional[Path] = Field(default=None, description="Path to save file")
     new_game: bool = Field(default=False, description="Start a new game")
     debug: bool = Field(default=False, description="Enable debug mode")
@@ -27,16 +28,15 @@ class Config(BaseModel):
             self.save_file = sorcery_dir / "save.json"
         
         # Get API key from environment if not provided
-        if self.api_key is None:
-            self.api_key = (
-                os.getenv("OPENAI_API_KEY") or
-                os.getenv("ANTHROPIC_API_KEY") or
-                os.getenv("SORCERY_API_KEY")
-            )
+        if self.openai_api_key is None and os.getenv("OPENAI_API_KEY"):
+            self.openai_api_key = os.getenv("OPENAI_API_KEY")
+
+        if self.anthropic_api_key is None and os.getenv("ANTHROPIC_API_KEY"):
+            self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
         
         # Validate API key
-        if not self.api_key:
+        if not self.openai_api_key and not self.anthropic_api_key:
             raise ValueError(
-                "No API key provided. Set OPENAI_API_KEY, ANTHROPIC_API_KEY, "
-                "or SORCERY_API_KEY environment variable, or use --api-key flag."
+                "No API key provided. Set OPENAI_API_KEY, ANTHROPIC_API_KEY "
+                "environment variable, or use --openai-api-key, --anthropic-api-key flag."
             )

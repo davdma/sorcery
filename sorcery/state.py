@@ -220,7 +220,7 @@ class GameState(BaseModel):
         summary = f"Stats for {self.player_name}:\n"
         summary += f"Health: {stats.health}/100\n"
         summary += f"Strength: {stats.strength}/100\n"
-        summary += f"Wisdom: {stats.strength}/100\n"
+        summary += f"Wisdom: {stats.wisdom}/100\n"
         summary += f"Mana: {stats.mana}/100\n"
         summary += f"Charisma: {stats.charisma}/100\n"
         summary += f"Gold: {stats.gold}\n"

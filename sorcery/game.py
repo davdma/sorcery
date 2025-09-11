@@ -24,7 +24,7 @@ class Game:
         self.state = self._load_or_create_state()
 
         # Initialize LLM manager
-        self.llm = StoryTeller(io=self.io, model=config.model, api_key=config.api_key)
+        self.llm = StoryTeller(io=self.io, model=config.model)
         
         # Initialize command processor
         self.commands = CommandProcessor(self.state, self.io)
@@ -67,12 +67,12 @@ class Game:
                     "No LLM model available. Please set up API keys properly:\n"
                     "- OPENAI_API_KEY for OpenAI models\n" 
                     "- ANTHROPIC_API_KEY for Anthropic models\n"
-                    "- Or use --api-key flag"
+                    "- Or use --openai-api-key, --anthropic-api-key flag"
                 )
                 return 1
             
             # Show opening scene if new game
-            if not self.state.story_history:
+            if not self.state.conversation_history:
                 opening_scene = self.llm.generate_opening_scene(self.state)
                 self.io.display_scene(opening_scene)
             else:

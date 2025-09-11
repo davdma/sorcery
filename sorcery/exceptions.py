@@ -43,6 +43,7 @@ EXCEPTIONS = [
         True,
         "The API provider timed out without returning a response. They may be down or overloaded.",
     ),
+    ExInfo("ImageFetchError", False, None)
 ]
 
 
