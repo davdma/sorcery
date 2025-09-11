@@ -7,8 +7,7 @@ from .config import Config
 from .state import GameState
 from .input_output import InputOutput
 from .commands import CommandProcessor
-from .llm import LLMManager
-
+from .llm import StoryTeller
 
 class Game:
     """Main game controller for Sorcery."""
@@ -23,9 +22,9 @@ class Game:
         
         # Initialize or load game state
         self.state = self._load_or_create_state()
-        
+
         # Initialize LLM manager
-        self.llm = LLMManager(model=config.model, api_key=config.api_key)
+        self.llm = StoryTeller(io=self.io, model=config.model, api_key=config.api_key)
         
         # Initialize command processor
         self.commands = CommandProcessor(self.state, self.io)
@@ -63,9 +62,9 @@ class Game:
             self.io.display_welcome()
             
             # Check if LLM is available
-            if not self.llm.get_available_provider():
+            if not self.llm.get_available_model():
                 self.io.display_error(
-                    "No LLM provider available. Please set up API keys:\n"
+                    "No LLM model available. Please set up API keys properly:\n"
                     "- OPENAI_API_KEY for OpenAI models\n" 
                     "- ANTHROPIC_API_KEY for Anthropic models\n"
                     "- Or use --api-key flag"
@@ -73,7 +72,7 @@ class Game:
                 return 1
             
             # Show opening scene if new game
-            if not self.state.conversation_history:
+            if not self.state.story_history:
                 opening_scene = self.llm.generate_opening_scene(self.state)
                 self.io.display_scene(opening_scene)
             else:

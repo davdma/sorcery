@@ -46,9 +46,10 @@ class GameEvent(BaseModel):
 class PlayerStats(BaseModel):
     """Player statistics and attributes."""
     health: int = 100
+    strength: int = 1
+    wisdom: int = 1
     mana: int = 100
-    level: int = 1
-    experience: int = 0
+    charisma: int = 0
     gold: int = 0
     custom_stats: Dict[str, Any] = Field(default_factory=dict)
 
@@ -218,9 +219,10 @@ class GameState(BaseModel):
         stats = self.player_stats
         summary = f"Stats for {self.player_name}:\n"
         summary += f"Health: {stats.health}/100\n"
+        summary += f"Strength: {stats.strength}/100\n"
+        summary += f"Wisdom: {stats.strength}/100\n"
         summary += f"Mana: {stats.mana}/100\n"
-        summary += f"Level: {stats.level}\n"
-        summary += f"Experience: {stats.experience}\n"
+        summary += f"Charisma: {stats.charisma}/100\n"
         summary += f"Gold: {stats.gold}\n"
         
         if stats.custom_stats:
