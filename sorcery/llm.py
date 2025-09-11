@@ -146,7 +146,7 @@ def _build_system_prompt(game_state: GameState) -> str:
     return f"""You are the narrator of SORCERY, a text-based RPG adventure game.
 
 Current Game Context:
-- Player: {game_state.player_name}
+- Player Name: {game_state.player_name}
 - Location: {game_state.current_location}
 
 {game_state.get_stats_summary()}
@@ -178,8 +178,8 @@ class Model():
         self.info = get_model_info(model_name)
         
         max_input_tokens = self.info.get("max_input_tokens") or 0
-        # min 1k max 8k tokens
-        self.max_chat_history_tokens = min(max(max_input_tokens / 16, 1024), 8192)
+        # min 1k max 60% of tokens
+        self.max_chat_history_tokens = max(1024, int(0.6 * max_input_tokens))
         self.api_key = self.validate_environment()
         if self.api_key is None:
             raise ValueError("No API key found in environment.")
@@ -208,17 +208,17 @@ class Model():
     def token_count(self, messages):
         if type(messages) is list:
             try:
-                return litellm.token_counter(model=self.name, messages=messages)
+                count = litellm.token_counter(model=self.name, messages=messages)
+                return count
             except Exception as err:
-                print(f"Unable to count token: {err}")
                 return 0
         
         if type(messages) is str:
             msgs = messages
             try:
-                return len(self.tokenizer(msgs))
+                tokens = self.tokenizer(msgs)
+                return len(tokens)
             except Exception as err:
-                print(f"Unable to count tokens: {err}")
                 return 0
         else:
             raise ValueError(f"Unexpected type for messages: {type(messages)}")
@@ -233,7 +233,8 @@ class Model():
             timeout=request_timeout
         )
 
-        return litellm.completion(**kwargs)
+        result = litellm.completion(**kwargs)
+        return result
 
     def simple_send_with_retries(self, messages):
         from .exceptions import LiteLLMExceptions
@@ -241,16 +242,19 @@ class Model():
         litellm_ex = LiteLLMExceptions()
         retry_delay = 0.125
 
+        res = None
+
         while True:
             try:
                 kwargs = {
                     "messages": messages,
                     "stream": False,
                 }
-                response = self.send_completion(**kwargs)
-                if not response or not hasattr(response, "choices") or not response.choices:
-                    return None
-                res = response.choices[0].message.content
+                res = self.send_completion(**kwargs)
+                if not res or not hasattr(res, "choices") or not res.choices:
+                    return ""
+                content = res.choices[0].message.content
+                return content
             except litellm_ex.exceptions_tuple() as err:
                 ex_info = litellm_ex.get_ex_info(err)
                 print(str(err))
@@ -263,11 +267,10 @@ class Model():
                         should_retry = False
                 if not should_retry:
                     return None
-                print(f"Retrying in {retry_delay:.1f} seconds...")
                 time.sleep(retry_delay)
                 continue
-            except AttributeError:
-                return None
+            except Exception as err:
+                raise err
 
 
 class StoryTeller:
@@ -281,7 +284,7 @@ class StoryTeller:
         self.model = Model(model)
         
         # Initialize summarizer
-        self.summarizer = StorySummary(model=self.model)
+        self.summarizer = StorySummary(model=self.model) # max_tokens=self.model.max_chat_history_tokens)
         self.summarizer_thread = None
 
         # Separation of message types
@@ -313,24 +316,25 @@ class StoryTeller:
         self.summarizer_thread.start()
 
     def summarize_worker(self):
-        # make copy of list of messages to summarize
         self.summarizing_messages = list(self.done_messages)
         try:
             self.summarized_done_messages = self.summarizer.summarize(self.summarizing_messages)
         except ValueError as err:
             self.io.display_error(err.args[0])
+        except Exception as err:
+            self.io.display_error(f"Summarization error: {err}")
 
     def summarize_end(self):
         if self.summarizer_thread is None:
             return
 
-        self.summarizer_thread.join()
+        self.summarizer_thread.join() 
         self.summarizer_thread = None
 
         # if new user messages added to history, discard summary
         if self.summarizing_messages == self.done_messages:
             self.done_messages = self.summarized_done_messages
-
+        
         self.summarizing_messages = None
         self.summarized_done_messages = []
 
@@ -343,13 +347,13 @@ class StoryTeller:
         """Combine chunks of messages for sending."""
         chunks = ChatChunks()
         chunks.system = self.system_message
-
+        
         # summarizer call
         self.summarize_end()
         chunks.past_scenes = self.done_messages
         chunks.cur = list(self.cur_messages)
         chunks.reminder = []
-
+        
         return chunks
 
     def send_message(self, inp):
@@ -372,14 +376,15 @@ class StoryTeller:
         retry_delay = 0.125
         exhausted = False
 
+        res = None
         while True:
             try:
                 res = self.model.send_completion(messages, False)
                 if not res or not hasattr(res, "choices") or not res.choices:
                     return ""
-                return res.choices[0].message.content
+                content = res.choices[0].message.content
+                return content
             except litellm_ex.exceptions_tuple() as err:
-                print(err)
                 ex_info = litellm_ex.get_ex_info(err)
 
                 if ex_info.name == "ContextWindowExceededError":
@@ -402,7 +407,6 @@ class StoryTeller:
                 else:
                     self.io.display_error(err_msg)
 
-                self.io.display_info(f"Retrying in {retry_delay:.1f} seconds...")
                 time.sleep(retry_delay)
                 continue
             except Exception as err:
@@ -460,7 +464,9 @@ class StoryTeller:
         
         scene_content = self.send_message(opening_prompt)
 
-        self.move_back_cur_messages()
+        # do not move the opening prompt to the past messages for summary
+        self.cur_messages = []
+        # self.move_back_cur_messages()
 
         # add reply to cur messages
         self.cur_messages += [

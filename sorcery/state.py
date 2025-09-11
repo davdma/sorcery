@@ -63,7 +63,7 @@ class GameState(BaseModel):
     version: str = "0.1.0"
     
     # Player information
-    player_name: str = "Adventurer"
+    player_name: str = ""
     player_stats: PlayerStats = Field(default_factory=PlayerStats)
     
     # World state

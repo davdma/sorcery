@@ -106,9 +106,7 @@ class StorySummary:
 
         try:
             summary = self.model.simple_send_with_retries(summarize_messages)
-            if summary is not None:
-                return [dict(role="user", content=summary)]
+            summary = prompts.summary_prefix + summary
+            return [dict(role="assistant", content=summary)]
         except Exception as e:
-            print(f"Summarization failed for model {self.model.name}: {str(e)}")
-
-        raise ValueError("summarizer unexpectedly failed for all models")
+            raise e

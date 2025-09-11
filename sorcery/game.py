@@ -33,15 +33,11 @@ class Game:
         """Load existing game state or create a new one."""
         if not self.config.new_game and self.config.save_file and self.config.save_file.exists():
             try:
-                if self.config.debug:
-                    print(f"Loading game from: {self.config.save_file}")
                 return GameState.load_from_file(self.config.save_file)
             except Exception as e:
-                if self.config.debug:
-                    print(f"Failed to load save file: {e}")
                 self.io.display_error(f"Failed to load save file: {e}")
                 self.io.display_info("Starting new game instead.")
-        
+
         # Create new game state
         state = GameState()
         
@@ -70,7 +66,20 @@ class Game:
                     "- Or use --openai-api-key, --anthropic-api-key flag"
                 )
                 return 1
-            
+
+            # Get adventurer name if not set
+            if not self.state.player_name:
+                self.io.display_question("What is your name, adventurer?")
+                name = self.io.get_input()
+
+                # Check if it's a command
+                if name == "/exit":
+                    self.io.display_goodbye()
+                    return 0
+                if not name:
+                    name = "Dave"
+                self.state.player_name = name
+
             # Show opening scene if new game
             if not self.state.conversation_history:
                 opening_scene = self.llm.generate_opening_scene(self.state)

@@ -137,6 +137,21 @@ class InputOutput:
             self.console.print(message)
             self.console.print("-" * (len(title) + 8) + "\n")
     
+    def display_question(self, question: str, title: str = "Question") -> None:
+        """Display an question."""
+        if self.pretty:
+            panel = Panel(
+                question,
+                title=f"[bold purple]{title}[/bold purple]",
+                border_style="purple",
+                padding=(1, 2)
+            )
+            self.console.print(panel)
+        else:
+            self.console.print(f"\n--- {title} ---")
+            self.console.print(message)
+            self.console.print("-" * (len(title) + 8) + "\n")
+    
     def display_error(self, message: str) -> None:
         """Display an error message."""
         if self.pretty:
